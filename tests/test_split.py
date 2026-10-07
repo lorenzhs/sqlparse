@@ -286,6 +286,94 @@ TRANSACTION;"""
     assert stmts[3] == 'END\nTRANSACTION;'
 
 
+def test_split_anonymous_begin_end_for():  # issue845 Case 1
+    sql = """
+BEGIN
+    SELECT 1;
+    FOR R DO
+        SELECT 1;
+    END FOR;
+END;
+"""
+    stmts = sqlparse.split(sql)
+    assert len(stmts) == 1
+    assert "END FOR;" in stmts[0]
+
+
+def test_split_anonymous_begin_end_case_inline():  # issue845 Case 2
+    sql = """
+BEGIN
+    SELECT 1;
+    IF 1 THEN
+        SELECT CASE WHEN 1 THEN 2 ELSE 3 END AS COUNT;
+    ELSE
+        SELECT 2;
+    END IF;
+END;
+"""
+    stmts = sqlparse.split(sql)
+    assert len(stmts) == 1
+    assert "END AS COUNT;" in stmts[0]
+
+
+def test_split_for_update_in_begin_end():
+    # Verify that FOR UPDATE / FOR SHARE inside a BEGIN ... END block do not break level balancing
+    sql = """
+BEGIN
+    SELECT * FROM foo FOR UPDATE;
+    SELECT * FROM bar FOR SHARE;
+END;
+SELECT 3;
+"""
+    stmts = sqlparse.split(sql)
+    assert len(stmts) == 2
+    assert "SELECT 3;" in stmts[1]
+
+
+def test_split_multiple_for_loops_in_begin_end():
+    # Verify that multiple sequential loops inside a BEGIN ... END block balance correctly
+    sql = """
+BEGIN
+    FOR x IN select_query LOOP
+        SELECT 1;
+    END LOOP;
+    FOR y IN select_query LOOP
+        SELECT 2;
+    END LOOP;
+END;
+SELECT 3;
+"""
+    stmts = sqlparse.split(sql)
+    assert len(stmts) == 2
+    assert "SELECT 3;" in stmts[1]
+
+
+def test_split_procedural_case_end_case():
+    # Verify that CASE closed by END CASE inside a BEGIN block balances correctly
+    sql = """
+BEGIN
+    CASE val
+        WHEN 1 THEN SELECT 'one';
+        WHEN 2 THEN SELECT 'two';
+        ELSE SELECT 'other';
+    END CASE;
+END;
+SELECT 3;
+"""
+    stmts = sqlparse.split(sql)
+    assert len(stmts) == 2
+    assert "SELECT 3;" in stmts[1]
+
+
+def test_split_standalone_for_update():
+    # Verify that standalone FOR UPDATE statements split correctly
+    sql = "SELECT * FROM foo FOR UPDATE; SELECT 3;"
+    stmts = sqlparse.split(sql)
+    assert len(stmts) == 2
+    assert stmts[0] == "SELECT * FROM foo FOR UPDATE;"
+    assert stmts[1] == "SELECT 3;"
+
+
 def test_splitlevel_case_end():
     # CASE in a plain SELECT did not increment the level, but its matching END
     # decremented it unconditionally. This led to levels being wrong after the
@@ -315,3 +403,15 @@ def test_splitlevel_case_end():
     assert len(sqlparse.parse(
         "SELECT CASE WHEN 1 THEN 2 END, test IN ('foo \\', 'foo;') FROM t"
     )) == 1
+
+
+@pytest.mark.parametrize('expression', [
+    'CASE WHEN 1 THEN 2 END',
+    'CASE WHEN 1 THEN CASE WHEN 2 THEN 3 END ELSE 4 END',
+])
+def test_split_case_end_escaped_semicolon(expression):
+    query = "SELECT " + expression + ", test IN ('foo \\', 'foo;') FROM t"
+    statements = sqlparse.parse(query + '; SELECT 2;')
+    assert [str(statement) for statement in statements] == [
+        query + '; ', 'SELECT 2;',
+    ]

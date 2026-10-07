@@ -4,21 +4,27 @@ This file provides guidance to Agents when working with code in this repository.
 
 ## Project Overview
 
-sqlparse is a non-validating SQL parser for Python that provides support for parsing, splitting, and formatting SQL statements. It's compatible with Python 3.8+ and supports multiple SQL dialects (Oracle, MySQL, PostgreSQL/PL/pgSQL, HQL, MS Access, Snowflake, BigQuery).
+sqlparse is a non-validating SQL parser for Python that provides support for parsing, splitting, and formatting SQL statements. It's compatible with Python 3.10+ and supports multiple SQL dialects (Oracle, MySQL, PostgreSQL/PL/pgSQL, HQL, MS Access, Snowflake, BigQuery).
 
 ## Development Commands
 
-This project uses `pixi` for dependency and environment management. Common commands:
+This project uses `uv` for dependency and environment management. Common commands:
 
 ### Testing
-- Run all tests across Python versions: `pixi run test-all`
-- Run tests for specific Python version: `pixi run -e py311 pytest tests/`
-- Run single test file: `pixi run -e py311 pytest tests/test_format.py`
-- Run specific test: `pixi run -e py311 pytest tests/test_format.py::test_name`
+- Run all tests across Python versions: `make test`
+- Run tests for specific Python version: `uv run --group dev --python 3.11 pytest tests/`
+- Run single test file: `uv run --group dev --python 3.11 pytest tests/test_format.py`
+- Run specific test: `uv run --group dev --python 3.11 pytest tests/test_format.py::test_name`
 - Using Makefile: `make test`
 
 ### Linting
-- `pixi run lint` or `make lint`
+- `uv run --group dev ruff check sqlparse/` or `make lint`
+
+### Benchmarks
+- Run all scaling benchmarks: `make benchmark`
+- Run a single one: `uv run --group dev python benchmarks/bench_grouping.py`
+- Each script exits non-zero if a measured code path grows super-linearly.
+  See `benchmarks/README.md` for the options and for adding a benchmark.
 
 ### Coverage
 - `make coverage` (runs tests with coverage and shows report)
